@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>双版本抽奖 - 修复版</title>
+    <style>
+        /* 样式代码保持不变，太长这里省略，用实际代码 */
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: manipulation; }
+        body { font-family: -apple-system, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; color: white; padding: 20px; }
+        .container { max-width: 500px; margin: 0 auto; }
+        .header { text-align: center; margin-bottom: 25px; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 20px; }
+        .title { font-size: 32px; font-weight: bold; margin-bottom: 10px; background: linear-gradient(45deg, #ffd700, #ff8c00); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .version-switcher { display: flex; background: rgba(255,255,255,0.1); border-radius: 15px; margin-bottom: 20px; overflow: hidden; }
+        .version-btn { flex: 1; padding: 15px; text-align: center; font-size: 16px; cursor: pointer; transition: all 0.3s; }
+        .version-btn.active { background: rgba(255,255,255,0.2); }
+        .version-btn.premium { background: linear-gradient(45deg, #ffd700, #ff8c00); color: #333; }
+        .version-btn.economy { background: linear-gradient(45deg, #00b09b, #96c93d); color: white; }
+        .card { background: rgba(255,255,255,0.12); backdrop-filter: blur(10px); border-radius: 20px; padding: 25px; margin-bottom: 20px; }
+        .result-area { text-align: center; padding: 30px 20px; min-height: 180px; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        #resultText { font-size: 28px; font-weight: bold; margin: 15px 0; min-height: 60px; display: flex; align-items: center; justify-content: center; }
+        .draw-btn { width: 100%; padding: 20px; font-size: 22px; font-weight: bold; color: white; background: linear-gradient(45deg, #FF416C, #FF4B2B); border: none; border-radius: 15px; cursor: pointer; margin-bottom: 15px; }
+        .action-buttons { display: flex; gap: 10px; margin-top: 15px; }
+        .action-btn { flex: 1; padding: 15px; font-size: 16px; border: none; border-radius: 12px; cursor: pointer; font-weight: bold; }
+        .clear-btn { background: linear-gradient(45deg, #ff5858, #f09819); color: white; }
+        .share-btn { background: linear-gradient(45deg, #00b09b, #96c93d); color: white; }
+        .tab-bar { display: flex; background: rgba(255,255,255,0.1); border-radius: 15px; margin-bottom: 20px; overflow: hidden; }
+        .tab-btn { flex: 1; padding: 15px; text-align: center; font-size: 16px; cursor: pointer; }
+        .tab-btn.active { background: rgba(255,255,255,0.2); font-weight: bold; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="title">🎰 双版本抽奖</h1>
+            <p class="subtitle">普通版 / 低廉版自由切换</p>
+        </div>
+        
+        <!-- 版本切换器 -->
+        <div class="version-switcher">
+            <div class="version-btn premium active" id="premiumBtn">
+                普通版
+            </div>
+            <div class="version-btn economy" id="economyBtn">
+                低廉版
+            </div>
+        </div>
+        
+        <div class="tab-bar">
+            <div class="tab-btn active" id="tab0Btn">🎯 抽奖</div>
+            <div class="tab-btn" id="tab1Btn">📊 记录</div>
+            <div class="tab-btn" id="tab2Btn">📈 概率</div>
+        </div>
+        
+        <div id="tab0" class="tab-content active">
+            <div class="card result-area">
+                <div id="resultLabel">点击按钮开始抽奖</div>
+                <div id="resultText">🎁</div>
+            </div>
+            
+            <button class="draw-btn" id="drawButton">
+                🎲 开始抽奖
+            </button>
+            
+            <div class="action-buttons">
+                <button class="action-btn clear-btn" id="clearBtn">
+                    🗑️ 清空记录
+                </button>
+                <button class="action-btn share-btn" id="shareBtn">
+                    📤 分享
+                </button>
+            </div>
+            
+            <div class="stats">
+                <div>
+                    <div style="font-size: 14px; opacity: 0.8;">抽奖次数</div>
+                    <div id="drawCount" style="font-size: 24px; font-weight: bold;">0</div>
+                </div>
+                <div style="text-align: right;">
+                    <div style="font-size: 14px; opacity: 0.8;">累计金额</div>
+                    <div id="totalAmount" style="font-size: 24px; font-weight: bold;">0 元</div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="tab1" class="tab-content">
+            <div class="card">
+                <h3>📋 抽奖历史</h3>
+                <div class="history-list" id="historyList">
+                    <div style="text-align: center; padding: 60px 20px; color: rgba(255,255,255,0.7);">
+                        暂无抽奖记录
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="tab2" class="tab-content">
+            <div class="card">
+                <h3>🎯 奖项设置</h3>
+                <div class="prize-list" id="prizeList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 确保DOM完全加载后再绑定事件
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('页面加载完成，开始初始化...');
+            
+            // 版本配置
+            const versions = {
+                premium: {
+                    name: "普通版",
+                    prizes: [2448, 24.88, 18.88, 16.88, 12.88, 6.88, 4.88, 2.88],
+                    probabilities: [0.00001, 0.02, 0.03, 0.02, 0.03, 0.20, 0.35, 0.34999]
+                },
+                economy: {
+                    name: "低廉版",
+                    prizes: [6.88, 5.88, 4.88, 3.88, 2.88, 1.88, 0.88],
+                    probabilities: [0.10, 0.15, 0.15, 0.15, 0.15, 0.25, 0.25]
+                }
+            };
+            
+            let currentVersion = 'premium';
+            let history = { premium: [], economy: [] };
+            let drawCount = { premium: 0, economy: 0 };
+            let totalAmount = { premium: 0, economy: 0 };
+            
+            // 加载数据
+            function loadData() {
+                const saved = localStorage.getItem('lotteryData');
+                if (saved) {
+                    try {
+                        const data = JSON.parse(saved);
+                        history = data.history || { premium: [], economy: [] };
+                        drawCount = data.drawCount || { premium: 0, economy: 0 };
+                        totalAmount = data.totalAmount || { premium: 0, economy: 0 };
+                        currentVersion = data.currentVersion || 'premium';
+                    } catch (e) {
+                        console.log('加载数据失败，使用默认值');
+                    }
+                }
+                updateDisplay();
+            }
+            
+            // 保存数据
+            function saveData() {
+                const data = {
+                    history: history,
+                    drawCount: drawCount,
+                    totalAmount: totalAmount,
+                    currentVersion: currentVersion
+                };
+                localStorage.setItem('lotteryData', JSON.stringify(data));
+            }
+            
+            // 更新显示
+            function updateDisplay() {
+                document.getElementById('drawCount').textContent = drawCount[currentVersion];
+                document.getElementById('totalAmount').textContent = totalAmount[currentVersion].toFixed(2) + ' 元';
+                renderPrizes();
+                renderHistory();
+                
+                // 更新版本按钮状态
+                document.getElementById('premiumBtn').classList.toggle('active', currentVersion === 'premium');
+                document.getElementById('economyBtn').classList.toggle('active', currentVersion === 'economy');
+            }
+            
+            // 渲染奖项
+            function renderPrizes() {
+                const container = document.getElementById('prizeList');
+                const version = versions[currentVersion];
+                
+                let html = '';
+                version.prizes.forEach((prize, index) => {
+                    const prob = (version.probabilities[index] * 100).toFixed(2);
+                    html += `
+                        <div class="prize-item" style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 10px; text-align: center; margin: 10px 0;">
+                            <div style="font-size: 20px; font-weight: bold;">${prize.toFixed(2)}元</div>
+                            <div style="font-size: 14px; opacity: 0.8;">概率: ${prob}%</div>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+            }
+            
+            // 渲染历史记录
+            function renderHistory() {
+                const container = document.getElementById('historyList');
+                const currentHistory = history[currentVersion];
+                
+                if (currentHistory.length === 0) {
+                    container.innerHTML = '<div style="text-align: center; padding: 60px 20px; color: rgba(255,255,255,0.7);">暂无抽奖记录</div>';
+                    return;
+                }
+                
+                let html = '';
+                currentHistory.slice(-20).reverse().forEach((prize, index) => {
+                    html += `
+                        <div class="history-item" style="background: rgba(255,255,255,0.1); padding: 12px 15px; margin: 8px 0; border-radius: 10px;">
+                            <div>第 ${currentHistory.length - index} 次</div>
+                            <div style="font-weight: bold;">${prize.toFixed(2)} 元</div>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+            }
+            
+            // 抽奖逻辑
+            function drawPrize() {
+                const version = versions[currentVersion];
+                const r = Math.random();
+                let cp = 0;
+                
+                for (let i = 0; i < version.prizes.length; i++) {
+                    cp += version.probabilities[i];
+                    if (r <= cp) {
+                        return version.prizes[i];
+                    }
+                }
+                return version.prizes[version.prizes.length - 1]; // 兜底
+            }
+            
+            // 抽奖函数
+            function startDraw() {
+                console.log('开始抽奖');
+                const button = document.getElementById('drawButton');
+                const resultLabel = document.getElementById('resultLabel');
+                const resultText = document.getElementById('resultText');
+                
+                // 禁用按钮防止重复点击
+                button.disabled = true;
+                button.textContent = '🎲 抽奖中...';
+                
+                // 简单动画
+                let count = 0;
+                const interval = setInterval(() => {
+                    count++;
+                    const tempPrize = versions[currentVersion].prizes[Math.floor(Math.random() * versions[currentVersion].prizes.length)];
+                    resultText.textContent = `${tempPrize.toFixed(2)} 元`;
+                    
+                    if (count >= 10) {
+                        clearInterval(interval);
+                        
+                        // 获取最终结果
+                        const prize = drawPrize();
+                        resultLabel.textContent = '✨ 抽奖结果';
+                        resultText.textContent = `${prize.toFixed(2)} 元`;
+                        
+                        // 更新记录
+                        history[currentVersion].push(prize);
+                        drawCount[currentVersion]++;
+                        totalAmount[currentVersion] += prize;
+                        
+                        // 保存数据
+                        saveData();
+                        updateDisplay();
+                        
+                        // 恢复按钮
+                        setTimeout(() => {
+                            button.disabled = false;
+                            button.textContent = '🎲 再次抽奖';
+                            resultLabel.textContent = '点击按钮开始抽奖';
+                        }, 1000);
+                    }
+                }, 100);
+            }
+            
+            // 切换版本
+            function switchVersion(version) {
+                console.log('切换到版本:', version);
+                currentVersion = version;
+                updateDisplay();
+                saveData();
+            }
+            
+            // 切换标签页
+            function switchTab(tabIndex) {
+                console.log('切换到标签:', tabIndex);
+                // 隐藏所有标签内容
+                document.getElementById('tab0').classList.remove('active');
+                document.getElementById('tab1').classList.remove('active');
+                document.getElementById('tab2').classList.remove('active');
+                
+                // 移除所有标签的active类
+                document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+                
+                // 显示选中的标签内容
+                document.getElementById(`tab${tabIndex}`).classList.add('active');
+                document.getElementById(`tab${tabIndex}Btn`).classList.add('active');
+            }
+            
+            // 清空记录
+            function clearRecords() {
+                if (confirm('确定要清空当前版本的记录吗？')) {
+                    history[currentVersion] = [];
+                    drawCount[currentVersion] = 0;
+                    totalAmount[currentVersion] = 0;
+                    saveData();
+                    updateDisplay();
+                    alert('记录已清空！');
+                }
+            }
+            
+            // 分享结果
+            function shareResults() {
+                if (history[currentVersion].length === 0) {
+                    alert('暂无抽奖记录可分享');
+                    return;
+                }
+                
+                const lastPrize = history[currentVersion][history[currentVersion].length - 1];
+                const shareText = `🎰 我在${versions[currentVersion].name}抽奖中获得了 ${lastPrize.toFixed(2)} 元！`;
+                
+                if (navigator.share) {
+                    navigator.share({
+                        title: '抽奖结果',
+                        text: shareText
+                    });
+                } else {
+                    navigator.clipboard.writeText(shareText).then(() => {
+                        alert('结果已复制到剪贴板！');
+                    });
+                }
+            }
+            
+            // 绑定事件监听器
+            function bindEvents() {
+                console.log('绑定事件监听器...');
+                
+                // 抽奖按钮
+                document.getElementById('drawButton').addEventListener('click', startDraw);
+                
+                // 版本切换按钮
+                document.getElementById('premiumBtn').addEventListener('click', () => switchVersion('premium'));
+                document.getElementById('economyBtn').addEventListener('click', () => switchVersion('economy'));
+                
+                // 标签页按钮
+                document.getElementById('tab0Btn').addEventListener('click', () => switchTab(0));
+                document.getElementById('tab1Btn').addEventListener('click', () => switchTab(1));
+                document.getElementById('tab2Btn').addEventListener('click', () => switchTab(2));
+                
+                // 清空按钮
+                document.getElementById('clearBtn').addEventListener('click', clearRecords);
+                
+                // 分享按钮
+                document.getElementById('shareBtn').addEventListener('click', shareResults);
+                
+                console.log('事件绑定完成');
+            }
+            
+            // 初始化
+            function init() {
+                console.log('初始化应用...');
+                loadData();
+                bindEvents();
+                console.log('应用初始化完成，当前版本:', currentVersion);
+                
+                // 测试按钮
+                console.log('抽奖按钮:', document.getElementById('drawButton'));
+                console.log('版本按钮:', document.getElementById('premiumBtn'), document.getElementById('economyBtn'));
+            }
+            
+            // 启动应用
+            init();
+        });
+    </script>
+</body>
+</html>
